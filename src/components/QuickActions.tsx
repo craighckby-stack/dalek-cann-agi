@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, FileCode, Dna, Heart, Eye, Users, Upload, Rocket, ListChecks, CheckCircle2 } from 'lucide-react';
+import { Search, FileCode, Dna, Heart, Eye, Users, Upload, Rocket, ListChecks, CheckCircle2, RotateCcw } from 'lucide-react';
 import { COLORS } from '@/lib/constants';
 
 interface QuickActionsProps {
@@ -8,6 +8,7 @@ interface QuickActionsProps {
   disabled: boolean;
   pushStatus?: 'idle' | 'pushing' | 'success' | 'error';
   deployStatus?: 'idle' | 'deploying' | 'success' | 'error';
+  rebootStatus?: 'idle' | 'rebooting' | 'success' | 'error';
   batchMode?: boolean;
   autoApprove?: boolean;
   onToggleAutoApprove?: () => void;
@@ -23,9 +24,10 @@ const actions = [
   { id: 'debate', label: 'DEBATE CHAMBER', icon: Users, color: COLORS.purple },
   { id: 'push-enhancements', label: 'PUSH FILES', icon: Upload, color: COLORS.green },
   { id: 'deploy-new-repo', label: 'DEPLOY NEW REPO', icon: Rocket, color: '#ff6600' },
+  { id: 'reboot-system', label: 'REBOOT SYSTEM', icon: RotateCcw, color: '#ff00ff' },
 ];
 
-export default function QuickActions({ onAction, disabled, pushStatus, deployStatus, batchMode, autoApprove, onToggleAutoApprove }: QuickActionsProps) {
+export default function QuickActions({ onAction, disabled, pushStatus, deployStatus, rebootStatus, batchMode, autoApprove, onToggleAutoApprove }: QuickActionsProps) {
   return (
     <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: `1px solid ${COLORS.panelBorder}` }}>
       <div className="flex items-center justify-between mb-2">
@@ -100,7 +102,8 @@ export default function QuickActions({ onAction, disabled, pushStatus, deploySta
         {actions.map(({ id, label, icon: Icon, color }) => {
           const isPushing = id === 'push-enhancements' && pushStatus === 'pushing';
           const isDeploying = id === 'deploy-new-repo' && deployStatus === 'deploying';
-          const isBusy = isPushing || isDeploying;
+          const isRebooting = id === 'reboot-system' && rebootStatus === 'rebooting';
+          const isBusy = isPushing || isDeploying || isRebooting;
           const isActionDisabled = disabled || isBusy;
 
           // Determine current status color for push/deploy buttons
@@ -109,6 +112,8 @@ export default function QuickActions({ onAction, disabled, pushStatus, deploySta
           if (id === 'push-enhancements' && pushStatus === 'error') statusColor = COLORS.dalekRed;
           if (id === 'deploy-new-repo' && deployStatus === 'success') statusColor = COLORS.green;
           if (id === 'deploy-new-repo' && deployStatus === 'error') statusColor = COLORS.dalekRed;
+          if (id === 'reboot-system' && rebootStatus === 'success') statusColor = COLORS.green;
+          if (id === 'reboot-system' && rebootStatus === 'error') statusColor = COLORS.dalekRed;
           // Highlight SELECT ALL when batch mode is active
           if (id === 'propose-all' && batchMode) statusColor = '#00ccff';
 
@@ -148,7 +153,7 @@ export default function QuickActions({ onAction, disabled, pushStatus, deploySta
             >
               <Icon size={11} className={isBusy ? 'animate-spin' : ''} />
               <span>◉</span>
-              {isPushing ? 'PUSHING...' : isDeploying ? 'DEPLOYING...' : label}
+              {isPushing ? 'PUSHING...' : isDeploying ? 'DEPLOYING...' : isRebooting ? 'REBOOTING...' : label}
             </button>
           );
         })}
