@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: 'application/vnd.github.v3+json',
-            'User-Agent': 'DARLEK-CANN-AGI',
+            'User-Agent': 'DARLEK-CANN',
           },
         }
       );
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'DARLEK-CANN-AGI',
+          'User-Agent': 'DARLEK-CANN',
         },
       });
       if (repoRes.ok) {
