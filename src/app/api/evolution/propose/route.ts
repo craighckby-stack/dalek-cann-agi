@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { ProposeBody } from '@/lib/types';
 
 /**
- * DARLEK CANN AGI — Mutation Proposal Engine
+ * DARLEK CANN — Mutation Proposal Engine
  *
  * Rule-based code analysis. No external LLM dependency.
  * Analyzes code structure, detects patterns, and proposes improvements.
