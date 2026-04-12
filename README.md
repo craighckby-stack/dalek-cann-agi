@@ -2,6 +2,8 @@
 
 Disregard agi brand.  old llm auto branding lolz.
 
+this is basicly studio version with firebase brain stripped out and a better name then dot.. 
+
 **Autonomous Code Evolution Engine**
 
 DARLEK CANN is a self-hosted Next.js dashboard that connects to a GitHub repository and autonomously proposes, debates, and applies code improvements through a multi-stage pipeline. The operator reviews and approves every change before it is committed. The system can also target and evolve its own source code, with a Reboot function that pulls and restarts on the enhanced version.
