@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * DARLEK CANN AGI — Debate Chamber
+ * DARLEK CANN — Debate Chamber
  *
  * Rule-based agent deliberation. No external LLM dependency.
  * Five agents analyze mutations using deterministic logic based on code metrics.
