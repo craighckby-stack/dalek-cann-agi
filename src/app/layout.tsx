@@ -16,8 +16,8 @@ const shareTechMono = Share_Tech_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DARLEK CANN AGI — COGNITIVE DOMINANCE ENGINE v3.0",
-  description: "Autonomous Code Evolution Orchestrator — I see all of time and space.",
+  title: "DARLEK CANN — COGNITIVE DOMINANCE ENGINE v3.0",
+  description: "Code Evolution Orchestrator — I see all of time and space.",
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
