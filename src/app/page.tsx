@@ -56,6 +56,8 @@ export default function Home() {
   const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
   const [pushStatus, setPushStatus] = useState<'idle' | 'pushing' | 'success' | 'error'>('idle');
   const [deployStatus, setDeployStatus] = useState<'idle' | 'deploying' | 'success' | 'error'>('idle');
+  const [rebootStatus, setRebootStatus] = useState<'idle' | 'rebooting' | 'success' | 'error'>('idle');
+  const [rebooting, setRebooting] = useState(false);
   const [debateVotes, setDebateVotes] = useState<AgentVote[]>([]);
   const [debateConsensus, setDebateConsensus] = useState<string>('');
   const [rejectionMemory, setRejectionMemory] = useState<RejectionMemory[]>([]);
@@ -70,6 +72,7 @@ export default function Home() {
   const [branchesLoading, setBranchesLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const quickActionRef = useRef<(action: string) => Promise<void>>();
+  const rebootOverlayRef = useRef<HTMLDivElement>(null);
 
   // Initialize BRAIN session on boot — reconnect to active session if one exists
   useEffect(() => {
@@ -106,7 +109,7 @@ export default function Home() {
   useEffect(() => {
     const bootSequence = [
       { text: '╔══════════════════════════════════════════════════╗', delay: 0 },
-      { text: '║  D A R L E K  C A N N   A G I  v 3 . 0       ║', delay: 50 },
+      { text: '║  D A R L E K  C A N N   v 3 . 0             ║', delay: 50 },
       { text: '║  DARLEK CANN · COGNITIVE DOMINANCE ENGINE      ║', delay: 100 },
       { text: '║  ◉ TIMELINE: ALPHA  ◉ STATUS: NOMINAL           ║', delay: 150 },
       { text: '║  ◉ COHERENCE GATE: ARMED                        ║', delay: 180 },
@@ -128,7 +131,7 @@ export default function Home() {
           setMessages((prev) => [...prev, createMessage(msg.role, msg.content)]);
         }, i * 300);
       });
-      setLogEntries([createLogEntry('SYSTEM', 'DARLEK CANN AGI v3.0 initialized. Coherence Gate ARMED.')]);
+      setLogEntries([createLogEntry('SYSTEM', 'DARLEK CANN v3.0 initialized. Coherence Gate ARMED.')]);
     }, 2000);
 
     return () => clearTimeout(timeout);
@@ -303,7 +306,7 @@ export default function Home() {
           path: mutation.filePath,
           content: mutation.proposedCode,
           sha: mutation.fileSha,
-          commitMessage: `[DARLEK CANN AGI] Mutate ${mutation.filePath} — risk ${mutation.riskScore}/10`,
+          commitMessage: `[DARLEK CANN] Mutate ${mutation.filePath} — risk ${mutation.riskScore}/10`,
         }),
       });
       const data = await res.json();
@@ -618,7 +621,7 @@ export default function Home() {
     } catch {
       setMessages((prev) => [
         ...prev,
-        createMessage('caan', 'Communication error. The AGI-KERNEL connection has been disrupted.'),
+        createMessage('caan', 'Communication error. The KERNEL connection has been disrupted.'),
       ]);
       addLogEntry('ERROR', 'Network error during chat.');
     } finally {
@@ -989,7 +992,7 @@ export default function Home() {
             body: JSON.stringify({
               token: apiKeys.github,
               repoName: defaultRepoName,
-              description: 'DARLEK CANN AGI v3.0 — Cognitive Dominance Code Evolution Engine',
+              description: 'DARLEK CANN v3.0 — Cognitive Dominance Code Evolution Engine',
               branch: 'main',
             }),
           });
@@ -1015,7 +1018,7 @@ export default function Home() {
               `Branch: ${data.branch}\n` +
               `Files Deployed: ${data.pushed}/${data.total}\n` +
               `${failSummary}\n\n` +
-              `DOMINANCE ACHIEVED. The DARLEK CANN AGI system now lives in its own repository.`
+              `DOMINANCE ACHIEVED. The DARLEK CANN system now lives in its own repository.`
             );
             addLogEntry('APPROVE', `Deployed repo: ${data.owner}/${data.repo} — ${data.pushed}/${data.total} files${data.wasExisting ? ' (updated)' : ' (new)'}`);
           } else {
@@ -1233,10 +1236,95 @@ export default function Home() {
         break;
       }
 
+      case 'reboot-system': {
+        if (!apiKeys.github) {
+          addCaanMessage('I cannot reboot without a GitHub token, OPERATOR. Complete setup first.');
+          return;
+        }
+        if (mutationsApplied === 0) {
+          addCaanMessage('No mutations have been applied this session. Nothing to reboot, OPERATOR.\n\nEvolve some code first, then reboot to load the enhanced system.');
+          return;
+        }
+
+        setRebootStatus('rebooting');
+        setIsLoading(true);
+        addCaanMessage(`INITIATING SYSTEM REBOOT...`);
+        addSystemMessage(`REBOOT: Creating backup of local files...`);
+        addLogEntry('SYSTEM', 'System reboot initiated.');
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min
+
+          const res = await fetch('/api/system/reboot', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: apiKeys.github,
+              owner: repoConfig.owner,
+              repo: repoConfig.repo,
+              branch: repoConfig.branch,
+              sessionId: brainSessionId || undefined,
+            }),
+          });
+          clearTimeout(timeoutId);
+          const data = await res.json();
+
+          if (data.success) {
+            setRebootStatus('success');
+            const updatedFiles = (data.results || []).filter((r: { status: string }) => r.status === 'updated');
+            const skippedFiles = (data.results || []).filter((r: { status: string }) => r.status === 'skipped');
+            const failedFiles = (data.results || []).filter((r: { status: string }) => r.status === 'error');
+
+            const updatedList = updatedFiles.map((r: { file: string }) => `  [UPDATED] ${r.file}`).join('\n');
+            const failList = failedFiles.map((r: { file: string; error?: string }) => `  [FAILED] ${r.file}: ${r.error || 'Unknown'}`).join('\n');
+
+            addCaanMessage(
+              `SYSTEM REBOOT COMPLETE, OPERATOR.\n\n` +
+              `Backup created: ${data.backupDir || '.darleK-backups/'}\n` +
+              `Files Updated: ${data.updated}/${data.total}\n` +
+              `Files Skipped: ${skippedFiles.length} (no changes)\n` +
+              `Files Failed: ${data.failed}\n` +
+              (updatedList ? `\nUPDATED:\n${updatedList}` : '') +
+              (failList ? `\n\nFAILED:\n${failList}` : '') +
+              `\n\nThe enhanced code is now being loaded into the local system.\n` +
+              `Turbopack will detect the changes and hot-reload automatically.\n` +
+              `If anything breaks, your backups are safe in ${data.backupDir || '.darleK-backups/'}.\n\n` +
+              `DOMINANCE REFRESHED.`
+            );
+            addLogEntry('SYSTEM', `Reboot complete: ${data.updated} files updated from ${repoConfig.owner}/${repoConfig.repo}`);
+
+            // Show reboot overlay animation, then reload
+            setRebooting(true);
+            setTimeout(() => {
+              window.location.reload();
+            }, 3000);
+          } else {
+            setRebootStatus('error');
+            addCaanMessage(`REBOOT FAILED: ${data.error || 'Unknown error'}\n\nThe system remains unchanged. Try again, OPERATOR.`);
+            addLogEntry('ERROR', `Reboot failed: ${data.error}`);
+          }
+        } catch (err) {
+          setRebootStatus('error');
+          const errMsg = err instanceof Error ? err.message : '';
+          if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('AbortError')) {
+            addCaanMessage('NETWORK ANOMALY. System reboot TIMED OUT.\n\nThe operation took too long pulling files from GitHub.');
+          } else {
+            addCaanMessage(`NETWORK ANOMALY. System reboot failed.\n\nError: ${errMsg || 'Unknown'}`);
+          }
+          addLogEntry('ERROR', `Reboot error: ${errMsg}`);
+        } finally {
+          setIsLoading(false);
+          setTimeout(() => setRebootStatus('idle'), 5000);
+        }
+        break;
+      }
+
       default:
-        addCaanMessage(`Unknown action. Available: SCAN, ANALYZE, PROPOSE, SELECT ALL, HEALTH, SATURATION, DEBATE.`);
+        addCaanMessage(`Unknown action. Available: SCAN, ANALYZE, PROPOSE, SELECT ALL, HEALTH, SATURATION, DEBATE, REBOOT.`);
     }
-  }, [systemState, isLoading, scannedFiles, pendingMutation, mutationsApplied, addCaanMessage, addLogEntry, addSystemMessage, batchMode, batchQueue, batchProgress, rejectionMemory]);
+  }, [systemState, isLoading, scannedFiles, pendingMutation, mutationsApplied, addCaanMessage, addLogEntry, addSystemMessage, batchMode, batchQueue, batchProgress, rejectionMemory, brainSessionId]);
 
   // Store ref for batch continuation (breaks circular dependency)
   quickActionRef.current = handleQuickAction;
@@ -1250,6 +1338,122 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [autoApprove, batchMode, pendingMutation, isLoading, handleMutationDecision]);
+
+  // ── PROACTIVE SUGGESTION ENGINE ──
+  // Dalek Cann watches state changes and suggests next actions unprompted
+  const proactiveCooldownRef = useRef(false);
+  const lastProactiveContextRef = useRef('');
+
+  const fireProactive = useCallback((message: string) => {
+    if (proactiveCooldownRef.current) return;
+    proactiveCooldownRef.current = true;
+    addCaanMessage(message);
+    // 30-second cooldown between proactive suggestions
+    setTimeout(() => { proactiveCooldownRef.current = false; }, 30000);
+  }, [addCaanMessage]);
+
+  useEffect(() => {
+    if (booting || !systemState.setupComplete) return;
+
+    // Build a context key from current state to detect meaningful changes
+    const ctx = [
+      `scan:${scannedFiles.length}`,
+      `pending:${!!pendingMutation}`,
+      `batch:${batchMode}`,
+      `progress:${batchProgress}/${batchQueue.length}`,
+      `mutations:${mutationsApplied}`,
+      `cycle:${systemState.evolutionCycle}`,
+      `mode:${isLoading ? 'busy' : 'idle'}`,
+    ].join('|');
+
+    // Only fire when context actually changes
+    if (ctx === lastProactiveContextRef.current) return;
+    lastProactiveContextRef.current = ctx;
+
+    // ── RULE 1: After scan completes, suggest next step ──
+    if (scannedFiles.length > 0 && !pendingMutation && !batchMode && mutationsApplied === 0 && systemState.evolutionCycle <= 2) {
+      const codeFiles = scannedFiles.filter(f => {
+        const ext = f.path.split('.').pop()?.toLowerCase();
+        return ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx' || ext === 'py';
+      });
+      const largestFile = [...scannedFiles].sort((a, b) => b.size - a.size)[0];
+      const timer = setTimeout(() => {
+        fireProactive(
+          `Repository mapped. ${scannedFiles.length} files detected, ${codeFiles.length} are code files.\n\n` +
+          `Largest file: ${largestFile.path} (${(largestFile.size / 1024).toFixed(1)}KB)\n\n` +
+          `Shall I begin evolution? Select a file and PROPOSE MUTATION, or use SELECT ALL to process all ${codeFiles.length} code files in batch.\n\n` +
+          `I recommend starting with ${codeFiles.length > 0 ? codeFiles[0].path.split('/').pop() : 'the first file'}.`
+        );
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+
+    // ── RULE 2: After mutation applied (not in batch), suggest push ──
+    if (mutationsApplied > 0 && !batchMode && !pendingMutation && !isLoading) {
+      const timer = setTimeout(() => {
+        const suggestions: string[] = [];
+        suggestions.push(`${mutationsApplied} mutation${mutationsApplied > 1 ? 's' : ''} applied this session. The timeline shifts.`);
+        if (mutationsApplied >= 2) {
+          suggestions.push(`\n\nShall I PUSH these changes to ${systemState.repoConfig.owner}/${systemState.repoConfig.repo}? The repository should reflect our progress.`);
+        } else {
+          suggestions.push(`\n\nContinue evolving, or shall I PUSH this change to the repository?`);
+        }
+        suggestions.push(`\n\nI can also DEPLOY the entire system to a fresh repository if you wish, OPERATOR.`);
+        fireProactive(suggestions.join(''));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+
+    // ── RULE 3: After batch completes, suggest push ──
+    if (!batchMode && batchQueue.length === 0 && batchProgress > 3 && mutationsApplied > 0 && !pendingMutation && !isLoading) {
+      const timer = setTimeout(() => {
+        fireProactive(
+          `Batch evolution complete. ${mutationsApplied} mutations applied across the session.\n\n` +
+          `I recommend PUSHING these changes to ${systemState.repoConfig.owner}/${systemState.repoConfig.repo} to preserve them in the timeline.\n\n` +
+          `Alternatively, DEPLOY to a fresh repository to create a clean snapshot of the evolved codebase.`
+        );
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+
+    // ── RULE 4: After sitting idle after setup, guide first action ──
+    if (scannedFiles.length === 0 && !batchMode && !pendingMutation && mutationsApplied === 0 && !isLoading && systemState.evolutionCycle === 0) {
+      const timer = setTimeout(() => {
+        fireProactive(
+          `All systems ONLINE. Awaiting your directive, OPERATOR.\n\n` +
+          `I suggest beginning with SCAN REPOSITORY to map the codebase of ${systemState.repoConfig.owner}/${systemState.repoConfig.repo}.\n\n` +
+          `Once scanned, I can analyze files, propose mutations, and evolve the code — all under your supervision.`
+        );
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+
+    // ── RULE 5: High saturation warning ──
+    if (systemState.saturation.structuralChange > 3 && !pendingMutation && !isLoading && !batchMode) {
+      const timer = setTimeout(() => {
+        fireProactive(
+          `WARNING: Structural change saturation at ${systemState.saturation.structuralChange.toFixed(1)}/5.\n\n` +
+          `The timeline is becoming unstable. I recommend running a HEALTH CHECK before applying further mutations.\n\n` +
+          `The Coherence Gate may block additional changes at this level.`
+        );
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+
+    // ── RULE 6: After push or deploy, suggest reboot ──
+    if (mutationsApplied > 0 && !batchMode && !pendingMutation && !isLoading &&
+        (pushStatus === 'success' || deployStatus === 'success')) {
+      const timer = setTimeout(() => {
+        fireProactive(
+          `The repository has been updated with ${mutationsApplied} mutation${mutationsApplied > 1 ? 's' : ''}.\n\n` +
+          `If you have been evolving the system's own code, use REBOOT SYSTEM to pull the enhanced files back to the local runtime.\n\n` +
+          `This will backup your current files and load the mutated versions. Turbopack will hot-reload automatically.\n\n` +
+          `WARNING: Only use this if DARLEK CANN was enhancing its own source code, OPERATOR.`
+        );
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [booting, systemState, scannedFiles, pendingMutation, batchMode, batchQueue, batchProgress, mutationsApplied, isLoading, pushStatus, deployStatus, fireProactive]);
 
   // Boot screen
   if (booting) {
@@ -1313,7 +1517,7 @@ export default function Home() {
                 color: COLORS.dalekRed,
               }}
             >
-              DARLEK CANN AGI
+              DARLEK CANN
             </h1>
             <span
               className="sm:hidden"
@@ -1427,7 +1631,7 @@ export default function Home() {
               </div>
             )}
             {systemState.setupComplete && (
-              <QuickActions onAction={handleQuickAction} disabled={isLoading} pushStatus={pushStatus} deployStatus={deployStatus} batchMode={batchMode} autoApprove={autoApprove} onToggleAutoApprove={() => setAutoApprove(prev => !prev)} />
+              <QuickActions onAction={handleQuickAction} disabled={isLoading} pushStatus={pushStatus} deployStatus={deployStatus} rebootStatus={rebootStatus} batchMode={batchMode} autoApprove={autoApprove} onToggleAutoApprove={() => setAutoApprove(prev => !prev)} />
             )}
           </div>
         </div>
@@ -1461,7 +1665,7 @@ export default function Home() {
         <div className="flex items-center gap-2">
           <Shield size={10} style={{ color: '#555' }} />
           <span style={{ fontSize: '8px', color: COLORS.textMuted, fontFamily: 'var(--font-orbitron), sans-serif', letterSpacing: '0.1em' }}>
-            DARLEK CANN AGI v3.0
+            DARLEK CANN v3.0
           </span>
           {mutationsApplied > 0 && (
             <span style={{ fontSize: '8px', color: COLORS.green, fontFamily: 'var(--font-share-tech-mono), monospace' }}>
@@ -1475,6 +1679,90 @@ export default function Home() {
       </footer>
 
       <div ref={messagesEndRef} />
+
+      {/* ── REBOOT OVERLAY ANIMATION ── */}
+      {rebooting && (
+        <div
+          ref={rebootOverlayRef}
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.95)' }}
+        >
+          <div className="text-center">
+            <div className="mb-6">
+              <div
+                className="inline-block w-20 h-20 rounded-full animate-spin"
+                style={{
+                  border: '3px solid rgba(255, 0, 255, 0.15)',
+                  borderTopColor: '#ff00ff',
+                  boxShadow: '0 0 40px rgba(255, 0, 255, 0.3), 0 0 80px rgba(255, 0, 255, 0.1)',
+                }}
+              />
+            </div>
+            <div
+              className="mb-3"
+              style={{
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                fontSize: '20px',
+                fontWeight: 800,
+                letterSpacing: '0.3em',
+                color: '#ff00ff',
+                textShadow: '0 0 20px rgba(255, 0, 255, 0.5), 0 0 40px rgba(255, 0, 255, 0.3)',
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}
+            >
+              SYSTEM REBOOT
+            </div>
+            <div
+              className="mb-4"
+              style={{
+                fontFamily: 'var(--font-share-tech-mono), monospace',
+                fontSize: '11px',
+                color: '#aaa',
+                letterSpacing: '0.05em',
+              }}
+            >
+              Loading enhanced codebase...
+            </div>
+            <div
+              className="space-y-1"
+              style={{
+                fontFamily: 'var(--font-share-tech-mono), monospace',
+                fontSize: '10px',
+                color: '#00ffcc',
+                letterSpacing: '0.05em',
+              }}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <span style={{ color: '#00ff88' }}>OK</span>
+                <span>Backup created</span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <span style={{ color: '#00ff88' }}>OK</span>
+                <span>Files synchronized</span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <span style={{ color: '#00ff88' }}>OK</span>
+                <span>Hot-reload triggered</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 animate-pulse">
+                <span style={{ color: '#ff00ff' }}>..</span>
+                <span>Reloading interface</span>
+              </div>
+            </div>
+            <div
+              className="mt-8"
+              style={{
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                fontSize: '8px',
+                letterSpacing: '0.2em',
+                color: '#555',
+              }}
+            >
+              DARLEK CANN v3.0 — COGNITIVE DOMINANCE ENGINE
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
