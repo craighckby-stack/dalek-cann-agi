@@ -5,7 +5,7 @@ import { join } from 'path';
 // Allow this route to run for up to 5 minutes (35+ sequential file pushes)
 export const maxDuration = 300;
 
-// Complete list of all DARLEK CANN AGI system files
+// Complete list of all DARLEK CANN system files
 const SYSTEM_FILES = [
   // API routes
   'src/app/api/chat/route.ts',
@@ -88,7 +88,7 @@ async function pushFile(
 
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}`;
   const body: Record<string, unknown> = {
-    message: `[DARLEK CANN AGI] Enhancement: ${filePath}`,
+    message: `[DARLEK CANN] Enhancement: ${filePath}`,
     content: Buffer.from(content, 'utf-8').toString('base64'),
     branch,
   };
