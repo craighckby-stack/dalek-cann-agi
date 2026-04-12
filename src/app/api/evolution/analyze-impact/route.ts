@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * DARLEK CANN AGI — Impact Analysis Engine
+ * DARLEK CANN — Impact Analysis Engine
  *
  * Pure static analysis. No external LLM dependency.
  * Detects structural changes between original and proposed code.
