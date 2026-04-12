@@ -138,6 +138,10 @@ CHAT COMMANDS:
   "all" / "select all" — Start batch mode on all code files
   "exterminate" — Apply mutation with extreme prejudice
 
+BATCH MODE:
+  Toggle AUTO APPROVE ALL checkbox to fully automate mutations.
+  Each file will be analyzed and applied automatically. Type ABORT to stop.
+
 FREE CHAT:
   Ask me anything — I will analyze, advise, and narrate.
 
