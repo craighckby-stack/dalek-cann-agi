@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { Message } from '@/lib/types';
 import { COLORS } from '@/lib/constants';
 
@@ -7,8 +9,31 @@ interface ChatMessageProps {
   message: Message;
 }
 
+// Thresholds for auto-collapse
+const COLLAPSE_THRESHOLD = 280; // characters
+const PREVIEW_LINES = 3;
+
+function truncateToLines(text: string, maxLines: number): string {
+  const lines = text.split('\n');
+  if (lines.length <= maxLines) return text;
+  return lines.slice(0, maxLines).join('\n');
+}
+
+function getPreviewText(text: string): string {
+  if (text.length <= COLLAPSE_THRESHOLD) return text;
+  const truncated = truncateToLines(text, PREVIEW_LINES);
+  // Always end with ellipsis
+  return truncated.trimEnd() + '...';
+}
+
 export default function ChatMessage({ message }: ChatMessageProps) {
+  const [expanded, setExpanded] = useState(false);
   const timeStr = new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const content = message.content;
+  const isLong = content.length > COLLAPSE_THRESHOLD;
+  const shouldShow = isLong ? (expanded ? content : getPreviewText(content)) : content;
+  const hiddenLines = isLong ? content.split('\n').length - PREVIEW_LINES : 0;
 
   if (message.role === 'system') {
     return (
@@ -41,10 +66,44 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               lineHeight: '1.5',
               color: COLORS.cyan,
               fontFamily: 'var(--font-share-tech-mono), monospace',
+              whiteSpace: 'pre-wrap',
             }}
           >
-            {message.content}
+            {shouldShow}
           </p>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center justify-center gap-1 mx-auto mt-1.5 px-2 py-0.5 rounded-sm transition-all"
+              style={{
+                fontSize: '9px',
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                letterSpacing: '0.08em',
+                color: COLORS.cyan,
+                background: 'rgba(0, 255, 204, 0.06)',
+                border: '1px solid rgba(0, 255, 204, 0.15)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 255, 204, 0.12)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(0, 255, 204, 0.06)';
+              }}
+            >
+              {expanded ? (
+                <>
+                  <ChevronDown size={10} />
+                  <span>COLLAPSE</span>
+                </>
+              ) : (
+                <>
+                  <ChevronRight size={10} />
+                  <span>EXPAND (+{hiddenLines} lines)</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -81,14 +140,51 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               color: '#e8e8e8',
             }}
           >
-            {message.content}
+            {shouldShow}
           </p>
+          {isLong && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="flex items-center gap-1 mt-2 px-2 py-0.5 rounded-sm transition-all"
+              style={{
+                fontSize: '9px',
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                letterSpacing: '0.08em',
+                color: COLORS.dalekRed,
+                background: 'rgba(255, 32, 32, 0.06)',
+                border: '1px solid rgba(255, 32, 32, 0.15)',
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 32, 32, 0.12)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 32, 32, 0.06)';
+              }}
+            >
+              {expanded ? (
+                <>
+                  <ChevronDown size={10} />
+                  <span>COLLAPSE</span>
+                </>
+              ) : (
+                <>
+                  <ChevronRight size={10} />
+                  <span>EXPAND (+{hiddenLines} lines)</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  // operator
+  // operator messages — also collapsible if long
+  const operatorIsLong = content.length > COLLAPSE_THRESHOLD;
+  const operatorShow = operatorIsLong ? (expanded ? content : getPreviewText(content)) : content;
+  const operatorHidden = operatorIsLong ? content.split('\n').length - PREVIEW_LINES : 0;
+
   return (
     <div className="message-animate flex justify-end">
       <div className="chat-operator rounded-lg p-3 ml-6 sm:ml-12 max-w-[90%] sm:max-w-[85%]">
@@ -119,8 +215,41 @@ export default function ChatMessage({ message }: ChatMessageProps) {
             color: '#ffffff',
           }}
         >
-          {message.content}
+          {operatorShow}
         </p>
+        {operatorIsLong && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 mt-2 ml-auto px-2 py-0.5 rounded-sm transition-all"
+            style={{
+              fontSize: '9px',
+              fontFamily: 'var(--font-orbitron), sans-serif',
+              letterSpacing: '0.08em',
+              color: COLORS.gold,
+              background: 'rgba(255, 170, 0, 0.06)',
+              border: '1px solid rgba(255, 170, 0, 0.15)',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 170, 0, 0.12)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 170, 0, 0.06)';
+            }}
+          >
+            {expanded ? (
+              <>
+                <ChevronDown size={10} />
+                <span>COLLAPSE</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight size={10} />
+                <span>EXPAND (+{operatorHidden} lines)</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );
