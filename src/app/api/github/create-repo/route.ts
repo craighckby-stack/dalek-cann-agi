@@ -5,7 +5,7 @@ import { join } from 'path';
 // Allow this route to run for up to 5 minutes (43+ sequential file pushes)
 export const maxDuration = 300;
 
-// All DARLEK CANN AGI system files to deploy
+// All DARLEK CANN system files to deploy
 const SYSTEM_FILES = [
   // API routes
   'src/app/api/chat/route.ts',
@@ -182,7 +182,7 @@ async function pushFile(
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}`;
     const body: Record<string, unknown> = {
-      message: `[DARLEK CANN AGI] Deploy: ${filePath}`,
+      message: `[DARLEK CANN] Deploy: ${filePath}`,
       content: Buffer.from(content, 'utf-8').toString('base64'),
       branch,
     };
@@ -214,7 +214,7 @@ async function pushFile(
 
 // Generate a .env.example file
 function generateEnvExample(): string {
-  return `# DARLEK CANN AGI v3.0
+  return `# DARLEK CANN v3.0
 # GitHub Personal Access Token (repo scope)
 GITHUB_TOKEN=
 
@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const repoDescription = description || 'DARLEK CANN AGI v3.0 — Cognitive Dominance Code Evolution Engine';
+    const repoDescription = description || 'DARLEK CANN v3.0 — Cognitive Dominance Code Evolution Engine';
     const targetBranch = branch || 'main';
 
     // Step 1: Get authenticated user info
