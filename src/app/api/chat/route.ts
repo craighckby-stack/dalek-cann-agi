@@ -4,7 +4,7 @@ import type { ChatRequestBody } from '@/lib/types';
 import { DALEK_CAAN_SYSTEM_PROMPT } from '@/lib/constants';
 
 /**
- * DARLEK CANN AGI — Chat API
+ * DARLEK CANN — Chat API
  *
  * Uses the built-in Dalek Brain response engine.
  * No external LLM dependency. All intelligence is local and deterministic.
