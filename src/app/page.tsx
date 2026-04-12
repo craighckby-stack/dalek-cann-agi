@@ -63,6 +63,7 @@ export default function Home() {
   const [batchMode, setBatchMode] = useState(false);
   const [batchQueue, setBatchQueue] = useState<GitHubFile[]>([]);
   const [batchProgress, setBatchProgress] = useState(0);
+  const [autoApprove, setAutoApprove] = useState(false);
   const [brainSessionId, setBrainSessionId] = useState<string>('');
   const [autoTestResult, setAutoTestResult] = useState<{ verdict: string; passed: number; failed: number; warned: number; summary: string; results: Array<{ category: string; test: string; status: string; message: string }> } | null>(null);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
@@ -560,7 +561,7 @@ export default function Home() {
         setSelectedFileIndex(0);
         const fileList = codeFiles.slice(0, 20).map((f, i) => `  ${i + 1}. ${f.path}`).join('\n');
         const extra = codeFiles.length > 20 ? `\n  ... and ${codeFiles.length - 20} more` : '';
-        setMessages((prev) => [...prev, createMessage('caan', `BATCH MODE ACTIVATED, OPERATOR.\n\n${codeFiles.length} code files selected for sequential mutation:\n\n${fileList}${extra}\n\nI will analyze each file and present mutations one at a time. Type YES to apply or NO to skip.\n\nStarting with file 1: ${codeFiles[0].path}...`)]);
+        setMessages((prev) => [...prev, createMessage('caan', `BATCH MODE ACTIVATED, OPERATOR.\n\n${codeFiles.length} code files selected for sequential mutation:\n\n${fileList}${extra}\n\nI will analyze each file and present mutations one at a time. Toggle AUTO APPROVE ALL to fully automate, or type YES / NO per file.\n\nStarting with file 1: ${codeFiles[0].path}...`)]);
         addLogEntry('SCAN', `Batch mode: ${codeFiles.length} code files queued for mutation.`);
         return;
       }
@@ -832,7 +833,7 @@ export default function Home() {
         setSelectedFileIndex(scannedFiles.indexOf(codeFiles[0]));
         const fileList = codeFiles.slice(0, 20).map((f, i) => `  ${i + 1}. ${f.path}`).join('\n');
         const extra = codeFiles.length > 20 ? `\n  ... and ${codeFiles.length - 20} more` : '';
-        addCaanMessage(`BATCH MODE ACTIVATED, OPERATOR.\n\n${codeFiles.length} code files queued for sequential mutation:\n\n${fileList}${extra}\n\nAnalyzing file 1/${codeFiles.length}: ${codeFiles[0].path}...`);
+        addCaanMessage(`BATCH MODE ACTIVATED, OPERATOR.\n\n${codeFiles.length} code files queued for sequential mutation:\n\n${fileList}${extra}\n\nToggle AUTO APPROVE ALL to fully automate. Type ABORT to stop.\n\nAnalyzing file 1/${codeFiles.length}: ${codeFiles[0].path}...`);
         addLogEntry('SCAN', `Batch mode: ${codeFiles.length} code files queued.`);
 
         // Immediately propose the first file
@@ -973,12 +974,17 @@ export default function Home() {
         setIsLoading(true);
         const defaultRepoName = 'dalek-cann-agi';
         addCaanMessage(`Initiating REPO DEPLOYMENT...`);
-        addCaanMessage(`Creating new repository: ${defaultRepoName}`);
-        addSystemMessage('DEPLOY: Creating GitHub repository and pushing all system files...');
+        addCaanMessage(`Target repository: ${defaultRepoName}`);
+        addSystemMessage('DEPLOY: Checking repository status and pushing all system files...');
 
         try {
+          // Use a longer timeout for this operation (it pushes 40+ files)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min
+
           const res = await fetch('/api/github/create-repo', {
             method: 'POST',
+            signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               token: apiKeys.github,
@@ -987,35 +993,46 @@ export default function Home() {
               branch: 'main',
             }),
           });
+          clearTimeout(timeoutId);
           const data = await res.json();
 
           if (data.success) {
             setDeployStatus('success');
-            const pushedFiles = (data.results || []).filter((r: { success: boolean }) => r.success);
             const failedFiles = (data.results || []).filter((r: { success: boolean }) => !r.success);
 
             const failSummary = failedFiles.length > 0
               ? `\n\nFAILED (${failedFiles.length}):\n${failedFiles.map((r: { file: string; error?: string }) => `  ! ${r.file}: ${r.error || 'Unknown'}`).join('\n')}`
               : '';
 
+            const existingNote = data.wasExisting
+              ? 'Repository already existed — files UPDATED.\n'
+              : 'Repository created fresh.\n';
+
             addCaanMessage(
               `REPO DEPLOYED, OPERATOR.\n\n` +
+              `${existingNote}` +
               `Repository: ${data.htmlUrl || `${data.owner}/${data.repo}`}\n` +
               `Branch: ${data.branch}\n` +
               `Files Deployed: ${data.pushed}/${data.total}\n` +
               `${failSummary}\n\n` +
               `DOMINANCE ACHIEVED. The DARLEK CANN AGI system now lives in its own repository.`
             );
-            addLogEntry('APPROVE', `Deployed new repo: ${data.owner}/${data.repo} — ${data.pushed}/${data.total} files`);
+            addLogEntry('APPROVE', `Deployed repo: ${data.owner}/${data.repo} — ${data.pushed}/${data.total} files${data.wasExisting ? ' (updated)' : ' (new)'}`);
           } else {
             setDeployStatus('error');
-            addCaanMessage(`REPO DEPLOYMENT FAILED: ${data.error || 'Unknown error'}\n\nThe timeline resists, OPERATOR. The repository may already exist.`);
+            addCaanMessage(`REPO DEPLOYMENT FAILED: ${data.error || 'Unknown error'}\n\nThe timeline resists, OPERATOR.`);
             addLogEntry('ERROR', `Repo deployment failed: ${data.error}`);
           }
-        } catch {
+        } catch (err) {
           setDeployStatus('error');
-          addCaanMessage('NETWORK ANOMALY. The repo deployment could not be transmitted.');
-          addLogEntry('ERROR', 'Repo deployment network error.');
+          const errMsg = err instanceof Error ? err.message : '';
+          if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('AbortError')) {
+            addCaanMessage('NETWORK ANOMALY. The repo deployment TIMED OUT — the operation took too long pushing 40+ files to GitHub.\n\nTry again, or use PUSH FILES to push to an existing repo in smaller batches.');
+            addLogEntry('ERROR', 'Repo deployment timed out after 5 minutes.');
+          } else {
+            addCaanMessage(`NETWORK ANOMALY. The repo deployment could not be transmitted.\n\nError: ${errMsg || 'Unknown network error'}`);
+            addLogEntry('ERROR', `Repo deployment network error: ${errMsg}`);
+          }
         } finally {
           setIsLoading(false);
           setTimeout(() => setDeployStatus('idle'), 5000);
@@ -1031,11 +1048,15 @@ export default function Home() {
         setPushStatus('pushing');
         setIsLoading(true);
         addCaanMessage(`Initiating ENHANCEMENT PUSH to ${repoConfig.owner}/${repoConfig.repo}@${repoConfig.branch}...`);
-        addSystemMessage('PUSH: Reading 25 enhancement files from local system...');
+        addSystemMessage('PUSH: Reading 35 enhancement files from local system...');
 
         try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min
+
           const res = await fetch('/api/github/push-enhancements', {
             method: 'POST',
+            signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               token: apiKeys.github,
@@ -1044,6 +1065,7 @@ export default function Home() {
               branch: repoConfig.branch,
             }),
           });
+          clearTimeout(timeoutId);
           const data = await res.json();
 
           if (data.success) {
@@ -1075,10 +1097,16 @@ export default function Home() {
             addCaanMessage(`PUSH FAILED: ${data.error || 'Unknown error'}\n\nThe timeline resists the enhancement, OPERATOR.`);
             addLogEntry('ERROR', `Enhancement push failed: ${data.error}`);
           }
-        } catch {
+        } catch (err) {
           setPushStatus('error');
-          addCaanMessage('NETWORK ANOMALY. The enhancement push could not be transmitted.');
-          addLogEntry('ERROR', 'Enhancement push network error.');
+          const errMsg = err instanceof Error ? err.message : '';
+          if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('AbortError')) {
+            addCaanMessage('NETWORK ANOMALY. Enhancement push TIMED OUT after 5 minutes.\n\nTry again — GitHub API may be rate-limited.');
+            addLogEntry('ERROR', 'Enhancement push timed out.');
+          } else {
+            addCaanMessage(`NETWORK ANOMALY. The enhancement push could not be transmitted.\n\nError: ${errMsg || 'Unknown'}`);
+            addLogEntry('ERROR', `Enhancement push error: ${errMsg}`);
+          }
         } finally {
           setIsLoading(false);
           setTimeout(() => setPushStatus('idle'), 5000);
@@ -1212,6 +1240,16 @@ export default function Home() {
 
   // Store ref for batch continuation (breaks circular dependency)
   quickActionRef.current = handleQuickAction;
+
+  // Auto-approve mutations when checkbox is on and batch mode is active
+  useEffect(() => {
+    if (autoApprove && batchMode && pendingMutation && !isLoading) {
+      const timer = setTimeout(() => {
+        handleMutationDecision('approve');
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [autoApprove, batchMode, pendingMutation, isLoading, handleMutationDecision]);
 
   // Boot screen
   if (booting) {
@@ -1382,11 +1420,14 @@ export default function Home() {
                   onApprove={() => handleMutationDecision('approve')}
                   onReject={() => handleMutationDecision('reject')}
                   disabled={isLoading}
+                  autoApprove={autoApprove}
+                  onToggleAutoApprove={() => setAutoApprove(!autoApprove)}
+                  batchMode={batchMode}
                 />
               </div>
             )}
             {systemState.setupComplete && (
-              <QuickActions onAction={handleQuickAction} disabled={isLoading} pushStatus={pushStatus} deployStatus={deployStatus} batchMode={batchMode} />
+              <QuickActions onAction={handleQuickAction} disabled={isLoading} pushStatus={pushStatus} deployStatus={deployStatus} batchMode={batchMode} autoApprove={autoApprove} onToggleAutoApprove={() => setAutoApprove(prev => !prev)} />
             )}
           </div>
         </div>
