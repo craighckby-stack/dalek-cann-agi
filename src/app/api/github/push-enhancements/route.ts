@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 
+// Allow this route to run for up to 5 minutes (35+ sequential file pushes)
+export const maxDuration = 300;
+
 // Complete list of all DARLEK CANN AGI system files
 const SYSTEM_FILES = [
   // API routes
