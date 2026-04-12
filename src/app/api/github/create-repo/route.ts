@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { join, relative, extname } from 'path';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+// Allow this route to run for up to 5 minutes (43+ sequential file pushes)
+export const maxDuration = 300;
 
 // All DARLEK CANN AGI system files to deploy
 const SYSTEM_FILES = [
@@ -60,15 +63,63 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Create a new GitHub repository for the authenticated user
-async function createGitHubRepo(token: string, repoName: string, description: string): Promise<{ success: boolean; htmlUrl?: string; cloneUrl?: string; error?: string }> {
+// Fetch with timeout helper
+async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
+  const { timeout = 15000, ...fetchOptions } = options;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch('https://api.github.com/user/repos', {
+    const res = await fetch(url, { ...fetchOptions, signal: controller.signal });
+    clearTimeout(timeoutId);
+    return res;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+// Get authenticated username
+async function getUsername(token: string): Promise<string> {
+  try {
+    const res = await fetchWithTimeout('https://api.github.com/user', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 10000,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.login || '';
+    }
+  } catch { /* continue */ }
+  return '';
+}
+
+// Check if a repo exists and get its info
+async function checkRepoExists(token: string, owner: string, repo: string): Promise<{ exists: boolean; htmlUrl?: string; cloneUrl?: string; defaultBranch?: string }> {
+  try {
+    const res = await fetchWithTimeout(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+      timeout: 10000,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        exists: true,
+        htmlUrl: data.html_url,
+        cloneUrl: data.clone_url,
+        defaultBranch: data.default_branch || 'main',
+      };
+    }
+    if (res.status === 404) return { exists: false };
+  } catch { /* assume doesn't exist */ }
+  return { exists: false };
+}
+
+// Create a new GitHub repository
+async function createGitHubRepo(token: string, repoName: string, description: string): Promise<{ success: boolean; htmlUrl?: string; cloneUrl?: string; error?: string }> {
+  try {
+    const res = await fetchWithTimeout('https://api.github.com/user/repos', {
       method: 'POST',
-      signal: controller.signal,
+      timeout: 15000,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json',
@@ -81,7 +132,6 @@ async function createGitHubRepo(token: string, repoName: string, description: st
         private: false,
       }),
     });
-    clearTimeout(timeout);
 
     if (!res.ok) {
       const err = await res.text().catch(() => 'Unknown error');
@@ -95,40 +145,61 @@ async function createGitHubRepo(token: string, repoName: string, description: st
       cloneUrl: data.clone_url,
     };
   } catch (err) {
-    clearTimeout(timeout);
     return { success: false, error: `Failed to create repo: ${err instanceof Error ? err.message : 'timeout'}` };
   }
 }
 
-// Push a single file to GitHub (no SHA needed for brand new repo)
+// Get SHA of an existing file on GitHub (for updates)
+async function getFileSha(token: string, owner: string, repo: string, branch: string, filePath: string): Promise<string | null> {
+  try {
+    const res = await fetchWithTimeout(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}?ref=${encodeURIComponent(branch)}`,
+      {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
+        timeout: 8000,
+      }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      return data.sha || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Push a single file (handles both new files and updates)
 async function pushFile(
   token: string,
   owner: string,
   repo: string,
   branch: string,
   filePath: string,
-  content: string
+  content: string,
+  sha: string | null
 ): Promise<{ success: boolean; error?: string }> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
   try {
     const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(filePath)}`;
-    const res = await fetch(url, {
+    const body: Record<string, unknown> = {
+      message: `[DARLEK CANN AGI] Deploy: ${filePath}`,
+      content: Buffer.from(content, 'utf-8').toString('base64'),
+      branch,
+    };
+    if (sha) {
+      body.sha = sha;
+    }
+
+    const res = await fetchWithTimeout(url, {
       method: 'PUT',
-      signal: controller.signal,
+      timeout: 15000,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        message: `[DARLEK CANN AGI] Deploy: ${filePath}`,
-        content: Buffer.from(content, 'utf-8').toString('base64'),
-        branch,
-      }),
+      body: JSON.stringify(body),
     });
-    clearTimeout(timeout);
 
     if (!res.ok) {
       const err = await res.text().catch(() => 'Unknown error');
@@ -137,7 +208,6 @@ async function pushFile(
 
     return { success: true };
   } catch (err) {
-    clearTimeout(timeout);
     return { success: false, error: `Request failed: ${err instanceof Error ? err.message : 'timeout'}` };
   }
 }
@@ -182,72 +252,72 @@ export async function POST(req: NextRequest) {
     const targetBranch = branch || 'main';
 
     // Step 1: Get authenticated user info
-    let username = '';
-    try {
-      const userRes = await fetch('https://api.github.com/user', {
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' },
-      });
-      if (userRes.ok) {
-        const userData = await userRes.json();
-        username = userData.login || '';
-      }
-    } catch { /* continue anyway */ }
-
-    // Step 2: Create the new repository
-    const repoResult = await createGitHubRepo(token, repoName, repoDescription);
-    if (!repoResult.success) {
+    const username = await getUsername(token);
+    if (!username) {
       return NextResponse.json({
         success: false,
-        error: `Failed to create repository: ${repoResult.error}`,
-      }, { status: 500 });
+        error: 'Could not authenticate with GitHub. Check your token.',
+      }, { status: 401 });
+    }
+
+    // Step 2: Check if repo already exists
+    const existingRepo = await checkRepoExists(token, username, repoName);
+    let htmlUrl = existingRepo.htmlUrl;
+    let cloneUrl = existingRepo.cloneUrl;
+    let repoCreated = false;
+
+    if (existingRepo.exists) {
+      // Repo already exists — reuse it and push updated files
+      repoCreated = true;
+    } else {
+      // Create the new repository
+      const repoResult = await createGitHubRepo(token, repoName, repoDescription);
+      if (!repoResult.success) {
+        return NextResponse.json({
+          success: false,
+          error: `Failed to create repository: ${repoResult.error}`,
+        }, { status: 500 });
+      }
+      htmlUrl = repoResult.htmlUrl;
+      cloneUrl = repoResult.cloneUrl;
+      repoCreated = true;
     }
 
     const owner = username;
-    const results: Array<{ file: string; success: boolean; error?: string }> = [];
+    const results: Array<{ file: string; success: boolean; error?: string; isNew?: boolean }> = [];
     let pushed = 0;
     let failed = 0;
+    let skipped = 0;
 
     const projectRoot = join(process.cwd());
 
-    // Step 3: Push all system source files
+    // Collect all files to push
+    const allFiles: Array<{ filePath: string; content: string }> = [];
+
+    // System source files
     for (const filePath of SYSTEM_FILES) {
       const localPath = join(projectRoot, filePath);
-
       if (!existsSync(localPath)) {
         results.push({ file: filePath, success: false, error: 'Not found locally' });
         failed++;
         continue;
       }
-
-      let content: string;
       try {
-        content = readFileSync(localPath, 'utf-8');
-      } catch (err) {
-        results.push({ file: filePath, success: false, error: `Read error` });
+        const content = readFileSync(localPath, 'utf-8');
+        allFiles.push({ filePath, content });
+      } catch {
+        results.push({ file: filePath, success: false, error: 'Read error' });
         failed++;
-        continue;
       }
-
-      // Rate limit delay
-      if (pushed + failed > 0) await sleep(350);
-
-      const result = await pushFile(token, owner, repoName, targetBranch, filePath, content);
-      results.push({ file: filePath, ...result });
-      if (result.success) pushed++;
-      else failed++;
     }
 
-    // Step 4: Push config files
+    // Config files
     const specialFiles: Record<string, string> = {};
-
-    // .env.example and .gitignore are generated
     specialFiles['.env.example'] = generateEnvExample();
     specialFiles['.gitignore'] = generateGitignore();
 
-    // Read other config files if they exist
     for (const configFile of CONFIG_FILES) {
       if (configFile === '.env.example' || configFile === '.gitignore') continue;
-
       const localPath = join(projectRoot, configFile);
       if (existsSync(localPath)) {
         try {
@@ -257,29 +327,49 @@ export async function POST(req: NextRequest) {
     }
 
     for (const [filePath, content] of Object.entries(specialFiles)) {
-      await sleep(350);
-      const result = await pushFile(token, owner, repoName, targetBranch, filePath, content);
-      results.push({ file: filePath, ...result });
+      allFiles.push({ filePath, content });
+    }
+
+    // Push each file with rate limiting
+    for (let i = 0; i < allFiles.length; i++) {
+      const { filePath, content } = allFiles[i];
+
+      // Rate limit: 300ms between requests
+      if (i > 0) await sleep(300);
+
+      // Get current SHA (needed for updating existing files)
+      const sha = await getFileSha(token, owner, repoName, targetBranch, filePath);
+      const isNew = !sha;
+
+      // Push the file
+      const result = await pushFile(token, owner, repoName, targetBranch, filePath, content, sha);
+      results.push({ file: filePath, ...result, isNew });
       if (result.success) pushed++;
       else failed++;
     }
+
+    const wasExisting = existingRepo.exists;
+    const summaryPrefix = wasExisting
+      ? `Repository "${repoName}" already existed — updated with `
+      : `Repository "${repoName}" created and deployed `;
 
     return NextResponse.json({
       success: true,
       owner,
       repo: repoName,
       branch: targetBranch,
-      htmlUrl: repoResult.htmlUrl,
-      cloneUrl: repoResult.cloneUrl,
+      htmlUrl,
+      cloneUrl,
       pushed,
       failed,
-      total: SYSTEM_FILES.length + Object.keys(specialFiles).length,
+      total: allFiles.length + (results.length - allFiles.length), // include not-found files
       results,
-      summary: `Repository "${repoName}" created and ${pushed}/${SYSTEM_FILES.length + Object.keys(specialFiles).length} files deployed.`,
+      wasExisting,
+      summary: `${summaryPrefix}${pushed}/${allFiles.length + (results.length - allFiles.length)} files.`,
     });
   } catch (error) {
     console.error('Create repo error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
