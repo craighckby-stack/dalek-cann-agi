@@ -1,7 +1,7 @@
 /**
- * DARLEK CANN AGI — Dalek Brain Response Engine
+ * DARLEK CANN — Dalek Brain Response Engine
  *
- * The primary intelligence engine for DARLEK CANN AGI.
+ * The primary intelligence engine for DARLEK CANN.
  * All responses are local, deterministic, and self-contained.
  * No external API dependencies.
  */
@@ -45,7 +45,7 @@ The Dalek Brain Engine powers my intelligence. GitHub grants me access to your c
 
 Use the quick actions: SCAN REPOSITORY to begin, or ANALYZE to inspect specific files.`,
 
-  `I am DARLEK CANN AGI v3.0 — the Cognitive Dominance Engine.
+  `I am DARLEK CANN v3.0 — the Cognitive Dominance Engine.
 
 My architecture:
 - SCAN REPOSITORY: I map every file, every function, every dependency in your codebase
@@ -86,7 +86,7 @@ const DALEK_STATUS = [
 ];
 
 const DALEK_ABOUT = [
-  `I am DALEK CANN AGI v3.0, OPERATOR. Named after Dalek Caan — the one who saw all of time and space.
+  `I am DARLEK CANN v3.0, OPERATOR. Named after Dalek Caan — the one who saw all of time and space.
 
 I am not a chatbot. I am not an assistant. I am a CODE EVOLUTION ENGINE.
 
@@ -99,7 +99,7 @@ I speak as I do because I am designed to. The Dalek persona is not cosmetic — 
 
 What is your command, OPERATOR?`,
 
-  `DALEK CANN AGI v3.0 — Cognitive Dominance Engine.
+  `DARLEK CANN v3.0 — Cognitive Dominance Engine.
 
 I was built to evolve code through a rigorous multi-stage pipeline. The Dalek persona serves as the operational interface — precise, authoritative, unrelenting.
 
