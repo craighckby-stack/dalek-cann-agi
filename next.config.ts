@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  watchOptions: {
+    ignored: ['**/node_modules/**', '**/skills/**', '**/.next/**', '**/.darleK-backups/**'],
+  },
 };
 
 export default nextConfig;
