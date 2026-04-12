@@ -3,21 +3,24 @@
 import { useState } from 'react';
 import type { PendingMutation } from '@/lib/types';
 import { COLORS } from '@/lib/constants';
-import { FileCode, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { FileCode, ChevronDown, ChevronUp, AlertTriangle, CheckCircle, XCircle, Zap } from 'lucide-react';
 
 interface MutationDiffViewProps {
   mutation: PendingMutation;
   onApprove: () => void;
   onReject: () => void;
   disabled: boolean;
+  autoApprove?: boolean;
+  onToggleAutoApprove?: () => void;
+  batchMode?: boolean;
 }
 
-export default function MutationDiffView({ mutation, onApprove, onReject, disabled }: MutationDiffViewProps) {
+export default function MutationDiffView({ mutation, onApprove, onReject, disabled, autoApprove, onToggleAutoApprove, batchMode }: MutationDiffViewProps) {
   const [showOriginal, setShowOriginal] = useState(false);
   const [showProposed, setShowProposed] = useState(false);
 
   const riskLabel = mutation.riskScore <= 3 ? 'LOW' : mutation.riskScore <= 6 ? 'MEDIUM' : mutation.riskScore <= 8 ? 'HIGH' : 'CRITICAL';
-  const riskColor = mutation.riskScore <= 3 ? COLORS.cyan : mutation.riskScore <= 6 ? COLORS.gold : COLORS.dalekRed;
+  const riskColor = mutation.riskScore <= 3 ? COLORS.cyan : mutation.riskScore <= 6 ? COLORS.gold : mutation.riskScore <= 8 ? COLORS.dalekRed : '#ff0040';
 
   const truncate = (code: string, maxLines: number = 20) => {
     const lines = code.split('\n');
@@ -27,7 +30,9 @@ export default function MutationDiffView({ mutation, onApprove, onReject, disabl
 
   const originalSize = (mutation.originalContent.length / 1024).toFixed(1);
   const proposedSize = (mutation.proposedCode.length / 1024).toFixed(1);
-  const sizeDiff = ((mutation.proposedCode.length - mutation.originalContent.length) / mutation.originalContent.length * 100).toFixed(0);
+  const sizeDiff = mutation.originalContent.length > 0
+    ? ((mutation.proposedCode.length - mutation.originalContent.length) / mutation.originalContent.length * 100).toFixed(0)
+    : '0';
   const sizeDiffSign = mutation.proposedCode.length > mutation.originalContent.length ? '+' : '';
 
   return (
@@ -190,23 +195,80 @@ export default function MutationDiffView({ mutation, onApprove, onReject, disabl
         )}
       </div>
 
+      {/* Auto-approve checkbox — only visible in batch mode */}
+      {batchMode && onToggleAutoApprove && (
+        <div
+          className="flex items-center gap-3 px-3 py-2.5 rounded-sm"
+          style={{
+            background: autoApprove ? 'rgba(0, 255, 204, 0.06)' : 'rgba(20, 10, 10, 0.8)',
+            border: `1px solid ${autoApprove ? 'rgba(0, 255, 204, 0.25)' : 'rgba(255, 102, 0, 0.15)'}`,
+          }}
+        >
+          <button
+            onClick={onToggleAutoApprove}
+            className="flex items-center justify-center flex-shrink-0"
+            style={{
+              width: '18px',
+              height: '18px',
+              borderRadius: '3px',
+              background: autoApprove ? COLORS.cyan : 'transparent',
+              border: `2px solid ${autoApprove ? COLORS.cyan : COLORS.textMuted}`,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {autoApprove && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6L5 9L10 3" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+          <div className="flex items-center gap-2 flex-1">
+            <Zap size={12} style={{ color: autoApprove ? COLORS.cyan : '#ff6600' }} />
+            <span
+              style={{
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                fontSize: '9px',
+                fontWeight: 600,
+                letterSpacing: '0.1em',
+                color: autoApprove ? COLORS.cyan : '#ff6600',
+              }}
+            >
+              AUTO APPROVE ALL
+            </span>
+          </div>
+          {autoApprove && (
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ background: COLORS.cyan }}
+            />
+          )}
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="flex gap-2">
         <button
           onClick={onReject}
-          disabled={disabled}
+          disabled={disabled || (batchMode && autoApprove)}
           className="dalek-btn dalek-btn-red flex-1 px-4 py-2.5 text-xs flex items-center justify-center gap-2"
+          style={{
+            opacity: batchMode && autoApprove ? 0.3 : 1,
+          }}
         >
           <XCircle size={13} />
-          REJECT
+          {batchMode && autoApprove ? 'AUTO' : 'REJECT'}
         </button>
         <button
           onClick={onApprove}
-          disabled={disabled}
+          disabled={disabled || (batchMode && autoApprove)}
           className="dalek-btn dalek-btn-green flex-1 px-4 py-2.5 text-xs flex items-center justify-center gap-2"
+          style={{
+            opacity: batchMode && autoApprove ? 0.3 : 1,
+          }}
         >
           <CheckCircle size={13} />
-          APPROVE
+          {batchMode && autoApprove ? 'AUTO' : 'APPROVE'}
         </button>
       </div>
     </div>
