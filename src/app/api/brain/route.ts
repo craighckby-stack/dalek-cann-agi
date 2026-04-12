@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 // ── BRAIN PERSISTENCE ──────────────────────────────────────────────
-// DARLEK CANN AGI stores session state, mutation history, rejections,
+// DARLEK CANN stores session state, mutation history, rejections,
 // and health snapshots so nothing is lost across page refreshes.
 // ───────────────────────────────────────────────────────────────────
 
