@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        message: commitMessage || `[DARLEK CANN AGI] Mutate ${filePath}`,
+        message: commitMessage || `[DARLEK CANN] Mutate ${filePath}`,
         content: Buffer.from(content, 'utf-8').toString('base64'),
         sha,
         branch,
