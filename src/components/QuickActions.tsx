@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, FileCode, Dna, Heart, Eye, Users, Upload, Rocket, ListChecks } from 'lucide-react';
+import { Search, FileCode, Dna, Heart, Eye, Users, Upload, Rocket, ListChecks, CheckCircle2 } from 'lucide-react';
 import { COLORS } from '@/lib/constants';
 
 interface QuickActionsProps {
@@ -9,6 +9,8 @@ interface QuickActionsProps {
   pushStatus?: 'idle' | 'pushing' | 'success' | 'error';
   deployStatus?: 'idle' | 'deploying' | 'success' | 'error';
   batchMode?: boolean;
+  autoApprove?: boolean;
+  onToggleAutoApprove?: () => void;
 }
 
 const actions = [
@@ -23,7 +25,7 @@ const actions = [
   { id: 'deploy-new-repo', label: 'DEPLOY NEW REPO', icon: Rocket, color: '#ff6600' },
 ];
 
-export default function QuickActions({ onAction, disabled, pushStatus, deployStatus, batchMode }: QuickActionsProps) {
+export default function QuickActions({ onAction, disabled, pushStatus, deployStatus, batchMode, autoApprove, onToggleAutoApprove }: QuickActionsProps) {
   return (
     <div className="px-3 py-3 flex-shrink-0" style={{ borderTop: `1px solid ${COLORS.panelBorder}` }}>
       <div className="flex items-center justify-between mb-2">
@@ -39,22 +41,60 @@ export default function QuickActions({ onAction, disabled, pushStatus, deploySta
           <span>◉</span>
           <span>QUICK ACTIONS</span>
         </div>
-        {batchMode && (
-          <div
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm"
-            style={{
-              fontFamily: 'var(--font-orbitron), sans-serif',
-              fontSize: '7px',
-              letterSpacing: '0.1em',
-              color: '#00ccff',
-              background: 'rgba(0, 204, 255, 0.1)',
-              border: '1px solid rgba(0, 204, 255, 0.25)',
-            }}
-          >
-            <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00ccff' }} />
-            BATCH MODE
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {autoApprove !== undefined && onToggleAutoApprove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAutoApprove();
+              }}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm transition-all duration-200 cursor-pointer"
+              style={{
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                fontSize: '7px',
+                letterSpacing: '0.1em',
+                color: autoApprove ? '#00ff88' : COLORS.textMuted,
+                background: autoApprove ? 'rgba(0, 255, 136, 0.1)' : 'transparent',
+                border: `1px solid ${autoApprove ? 'rgba(0, 255, 136, 0.4)' : 'rgba(255,255,255,0.1)'}`,
+              }}
+              title={autoApprove ? 'Auto-approve ON — all mutations applied automatically' : 'Auto-approve OFF — you approve each mutation manually'}
+            >
+              <CheckCircle2 size={9} style={{ opacity: autoApprove ? 1 : 0.4 }} />
+              <span>AUTO APPROVE</span>
+              <div
+                className="relative w-5 h-2.5 rounded-full transition-colors duration-200"
+                style={{
+                  background: autoApprove ? 'rgba(0, 255, 136, 0.3)' : 'rgba(255,255,255,0.1)',
+                }}
+              >
+                <div
+                  className="absolute top-0.5 w-1.5 h-1.5 rounded-full transition-all duration-200"
+                  style={{
+                    left: autoApprove ? '10px' : '2px',
+                    background: autoApprove ? '#00ff88' : '#555',
+                    boxShadow: autoApprove ? '0 0 6px rgba(0, 255, 136, 0.5)' : 'none',
+                  }}
+                />
+              </div>
+            </button>
+          )}
+          {batchMode && (
+            <div
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-sm"
+              style={{
+                fontFamily: 'var(--font-orbitron), sans-serif',
+                fontSize: '7px',
+                letterSpacing: '0.1em',
+                color: '#00ccff',
+                background: 'rgba(0, 204, 255, 0.1)',
+                border: '1px solid rgba(0, 204, 255, 0.25)',
+              }}
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#00ccff' }} />
+              BATCH MODE
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {actions.map(({ id, label, icon: Icon, color }) => {
